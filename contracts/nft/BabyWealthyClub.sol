@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity >=0.7.4;
+pragma solidity 0.7.4;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
-contract BabyWealthyClub is ERC721("Baby wealthy club", "BWC"), Ownable {
+contract BabyWealthyClub is ERC721("Baby Wealthy Club", "BWC"), Ownable {
+    
     mapping(address => bool) public isMinner;
 
     event Mint(address account, uint256 tokenId);
@@ -24,7 +25,7 @@ contract BabyWealthyClub is ERC721("Baby wealthy club", "BWC"), Ownable {
     function delMinner(address _minner) external onlyOwner {
         require(
             _minner != address(0),
-            "BabyWealthyClub: minner is zero address"
+            "BabyWealthyClub: minner is the zero address"
         );
         isMinner[_minner] = false;
         emit DelMinner(_minner);

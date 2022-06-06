@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity >=0.7.4;
+pragma solidity 0.7.4;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
@@ -13,11 +13,9 @@ contract SmartMintableInitializable is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     // The address of the smart minner factory
-    address public SMART_MINNER_FACTORY;
-
+    address immutable public SMART_MINNER_FACTORY;
     IBabyWealthyClubMintable public bwcToken;
     IERC20 public payToken;
-
     bool public isInitialized;
     address payable public reserve;
     uint256 public price;
@@ -27,7 +25,6 @@ contract SmartMintableInitializable is ReentrancyGuard, Ownable {
     uint256 public remaning;
     uint256 public poolLimitPerUser;
     bool public hasWhitelistLimit;
-
     mapping(address => uint256) public numberOfUsersMinted;
 
     event NewReserve(address oldReserve, address newReserve);
@@ -47,9 +44,12 @@ contract SmartMintableInitializable is ReentrancyGuard, Ownable {
         uint256 _poolLimitPerUser,
         bool _hasWhitelistLimit
     ) external {
-        require(!isInitialized, "Already initialized");
+        require(!isInitialized, "Already initialized the contract");
         require(msg.sender == SMART_MINNER_FACTORY, "Not factory");
-
+        require(_reserve != address(0), "_reserve can not be address(0)");
+        require(_price > 0, "price can not be 0");
+        require(_startTime <= _endTime, "invalid time params");
+        require(_poolLimitPerUser > 0, "_poolLimitPerUser can not be 0");
         // Make this contract initialized
         isInitialized = true;
         bwcToken = IBabyWealthyClubMintable(_bwcToken);
@@ -81,6 +81,31 @@ contract SmartMintableInitializable is ReentrancyGuard, Ownable {
         }
         remaning -= 1;
         bwcToken.mint(msg.sender);
+    }
+
+    function batchMint(uint number) external payable nonReentrant onlyWhitelist {
+        require(number > 0, "number can not be 0");
+        require(
+            numberOfUsersMinted[msg.sender] + number <= poolLimitPerUser,
+            "Purchase limit reached"
+        );
+        require(remaning >= number, "Insufficient remaining");
+        require(block.timestamp > startTime, "Has not started");
+        require(block.timestamp < endTime, "Has expired");
+        numberOfUsersMinted[msg.sender] += number;
+        uint amount =  price * number;
+        if (address(payToken) == address(0)) {
+            require(msg.value == amount, "Not enough tokens to pay");
+            Address.sendValue(reserve, amount);
+        } else {
+            payToken.safeTransferFrom(msg.sender, reserve, amount);
+        }
+        remaning -= number;
+        address[] memory recipients = new address[](number);
+        for(uint i = 0; i != recipients.length; i++ ) {
+            recipients[i] = msg.sender;
+        }
+        bwcToken.batchMint(recipients);
     }
 
     modifier onlyWhitelist() {
@@ -136,13 +161,13 @@ contract BabyWealthyClubMakeFactory is Ownable {
     }
 
     function setAdmin(address admin, bool enable) external onlyOwner {
-        require(admin != address(0), "Profile: address is zero");
+        require(admin != address(0), "BWC: address is zero");
         isAdmin[admin] = enable;
         emit SetAdmin(admin, enable);
     }
 
     modifier onlyAdmin() {
-        require(isAdmin[msg.sender], "Profile: caller is not the admin");
+        require(isAdmin[msg.sender], "BWC: caller is not the admin");
         _;
     }
 
